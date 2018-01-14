@@ -1,0 +1,64 @@
+---
+    - connection: local
+      hosts: 127.0.0.1
+      tasks:
+# create ssh keys
+        - user:
+            name: "{{ lookup('env','USER') }}"
+            generate_ssh_key: yes
+            ssh_key_bits: 2048
+            ssh_key_file: /tmp/id_rsa
+        - debug: msg="{{ lookup('file', '/tmp/id_rsa.pub') }}"
+          register: PUBLIC_SSH_KEY
+          
+# Remove any old contianer or imags
+        - docker:
+              name: master-cont
+              image: master-image
+              state: absent
+          ignore_errors: yes
+        - docker:
+              name: slave-container
+              image: slave-image
+              state: absent
+          ignore_errors: yes
+        - docker_image:
+              name: slave-image
+              state: absent
+        - docker_image:
+              name: master-image
+              state: absent
+              
+# create the slave image and container
+        - template: 
+              src: dockerfile1.j2 
+              dest: /tmp/dockerfile
+        - docker_image:
+              path: /tmp/
+              name: slave-image
+              state: present
+        - docker:
+              name: slave-container
+              image: slave-image
+              state: started
+              detach: yes
+              publish_all_ports: yes
+              ports:
+                  - "1212:22"
+                  
+# create the master image and container
+        - template: 
+              src: dockerfile2.j2 
+              dest: /tmp/dockerfile
+        - docker_image:
+              path: /tmp/
+              name: master-image
+              state: present
+        - docker:
+              name: master-container
+              image: master-image
+              state: started
+              detach: yes
+              publish_all_ports: yes
+              ports:
+                  - "1313:22"
